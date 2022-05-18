@@ -1,0 +1,272 @@
+/*
+ * GccApplication5.c
+ *
+ * Created: 16/5/2022 10:15:51 μμ
+ * Author : Dell E6440
+ */ 
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+
+#define ped_activation 20;
+
+#define ped_deactivation 512;
+
+int mode=1;
+int phase;
+int Correct_code;
+
+int interr_switch;
+int interr_timer;
+int Counter_SIR;
+
+int main(void)
+{
+    /* Replace with your application code */
+    while (1) 
+    {
+		
+		Correct_code=0;
+		Counter_SIR=0;
+		interr_timer=0;
+		interr_switch=0;
+		
+		PORTD.DIR = PIN0_bm;
+		PORTD.OUTCLR = PIN0_bm;
+		
+		
+		
+		
+		PORTF.PIN6CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+		PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+		sei();
+		
+		if(mode == 1){
+
+			main_activation();
+					
+		}
+		if(mode == 0){
+
+			main_deactivation();
+		
+		}
+		
+    }
+}
+
+int main_activation(void){
+	
+	while(mode == 1){
+		
+		phase = 3;
+		
+		while(Correct_code == 0){	//katastasi anamonis
+				_delay_ms(1);
+			interr_switch=1;	
+		}
+		if(Correct_code == 1){
+			
+			TCA0.SINGLE.CNT = 0;
+			TCA0.SINGLE.CMP0 = ped_activation;
+			TCA0.SINGLE.CTRLB = 0;
+			TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc;
+			TCA0.SINGLE.CTRLA |= 1;
+			TCA0.SINGLE.INTCTRL = 0x10;
+			sei();
+			while(interr_timer == 0){
+				_delay_ms(1);
+			}
+			cli();
+			
+			//ADC 
+			
+			ADC0.CTRLA |= ADC_RESSEL_10BIT_gc;
+			ADC0.CTRLA |= ADC_FREERUN_bm;
+			ADC0.CTRLA |= ADC_ENABLE_bm;
+			ADC0.MUXPOS |= ADC_MUXPOS_AIN7_gc;
+			ADC0.DBGCTRL |= ADC_DBGRUN_bm;
+			ADC0.WINLT = 0x0F;
+			ADC0.INTCTRL |= ADC_WCMP_bm;
+			ADC0.CTRLE |= ADC_WINCM0_bm;
+			sei();
+			ADC0.COMMAND |= ADC_STCONV_bm;
+	
+			while(ADC0.RES >= ADC0.WINLT){
+				_delay_ms(1);
+			}
+		}
+	}
+}
+
+int main_deactivation(void){
+	
+	//ENERGOPOIISI TIMER APO ADC INTERRUPT
+	PORTD.OUT = PIN0_bm;
+	
+	while(mode == 0){
+	
+				
+		//TIMER GIA TON XRONO EISAGWGIS KWDIKOU STIN APENERGOPOIISI
+		TCA0.SINGLE.CNT = 0;
+		TCA0.SINGLE.CMP0 = ped_deactivation;
+		TCA0.SINGLE.CTRLB = 0;
+		TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc;
+		TCA0.SINGLE.CTRLA |= 1;
+		TCA0.SINGLE.INTCTRL = 0x10;
+		sei();
+		while((Correct_code==0) && (Counter_SIR<3) && (interr_timer==0)){
+			_delay_ms(1);
+		}
+		
+		if(Correct_code == 0){
+			
+			mode = 2;	
+			main_Sirina_activation();		
+				
+		}
+		if(Correct_code == 1){
+				
+			TCA0.SINGLE.CTRLA =0;
+				
+			//apenergopoiisi seirinas 
+				
+			PORTD.OUTCLR = PIN0_bm;
+				
+			//apenergopoiisi olwn twn energwn sistimatwn
+			
+			mode = 1;
+		}
+	}
+}
+
+int main_Sirina_activation(void){
+	
+	while(Correct_code == 0){
+		
+		TCA0.SINGLE.CNT =0;		//RESET COUNTERS GIA TIMER
+		
+		TCA0.SINGLE.CTRLA = TCA_SPLIT_CLKSEL_DIV1024_gc;
+		TCA0.SINGLE.CTRLA |= 1;
+
+		TCA0.SINGLE.PER = 0x08;		// ORIZOUME PERIOD
+		TCA0.SINGLE.CMP0 = 0x04;	//ORIZOUME MISI PERIODO
+		
+		TCA0.SINGLE.CTRLB = 0x10;	//CMP0 ENABLE
+
+		TCA0.SINGLE.INTCTRL =0x15;	// OVF KAI CMP0 INTERRUPTS ENABLE
+		sei();
+		while(Correct_code == 0){
+			_delay_ms(4);
+		}
+	}
+}
+
+
+ISR(ADC0_WCOMP_vect){
+	
+	ADC0.CTRLA = 0;		//KLEINOUME TON ADC
+	
+	int intflags = ADC0.INTFLAGS;
+	ADC0.INTFLAGS = intflags;
+	
+	mode = 0;
+}
+
+ISR(TCA0_OVF_vect){
+	
+	PORTD.OUT = PIN0_bm;
+	//LED ENERGOPOIISI
+	
+	int intflags = TCA0.SINGLE.INTFLAGS;
+	TCA0.SINGLE.INTFLAGS = intflags;
+}
+
+ISR(TCA0_CMP0_vect){
+	
+	if((mode == 0) || (mode == 1)){
+		
+	TCA0.SINGLE.CTRLA = 0; //DISABLE TIMER
+	
+	interr_timer=1;
+	
+	}
+	
+	if(mode == 2){
+		
+		PORTD.OUTCLR = PIN0_bm;
+		//LED APENERGOPOIISI
+		
+	}
+	
+	//clear flags
+	int intflags = TCA0.SINGLE.INTFLAGS;
+	TCA0.SINGLE.INTFLAGS = intflags;
+	
+}
+
+ISR(PORTF_PORT_vect){
+	
+	
+	if((interr_switch == 1)	&&	(phase == 0)){		//PRWTO PATIMA
+		if(PORTF.INTFLAGS==0x20){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			phase=1;
+			interr_switch=0;
+			Correct_code=0;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 1)){		//DEYTERO PATIMA
+		if(PORTF.INTFLAGS == 0x20){
+			phase=2;
+			interr_switch=0;
+			Correct_code=0;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 2)){		//TRITO PATIMA
+		if(PORTF.INTFLAGS == 0x20){
+			phase=3;
+			interr_switch=0;
+			Correct_code=0;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 3)){		//TETARTO PATIMA
+		if(PORTF.INTFLAGS == 0x20){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			
+			phase=0;
+			interr_switch=0;
+			Correct_code=1;
+			TCA0.SINGLE.CTRLA = 0; //MIDENIZOUME TIMER GIATI PIRAME TON SWSTO KWDIKO
+		}
+	}
+	int intflags = PORTF.INTFLAGS;
+	PORTF.INTFLAGS = intflags;
+}
