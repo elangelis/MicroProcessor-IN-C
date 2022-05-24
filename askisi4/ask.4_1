@@ -1,0 +1,140 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+
+#define ped_activation 20;
+#define ped_deactivation 512;
+
+int mode;
+int phase;
+int Correct_code;
+
+int interr_switch;
+int interr_timer;
+int Counter_SIR;
+
+int main(void){
+
+	mode=1;
+	set_values();
+	
+	PORTD.DIR = PIN0_bm;
+	PORTD.OUTCLR = PIN0_bm;
+		
+	
+	PORTF.PIN6CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+	PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+	sei();
+
+    while (1){
+		if(mode == 1){
+			_delay_ms(1);
+			main_activation();		
+		}
+    }
+}
+
+
+int set_values(void){
+	phase=0;
+	Correct_code=0;
+	Counter_SIR=0;
+	interr_timer=0;
+}
+int main_activation(void){
+	
+	set_values();	
+	
+	while((Correct_code == 0) && (mode == 1)){	
+		//katastasi anamonis	
+	}
+	
+	//MPIKE O SWSTOS KWDIKOS ENERGOPOIEITAI O XRONISTIS
+	if(Correct_code == 1){
+			
+		TCA0.SINGLE.CNT = 0;
+		TCA0.SINGLE.CMP0 = ped_activation;
+		TCA0.SINGLE.CTRLB = 0;
+		TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc;
+		TCA0.SINGLE.CTRLA |= 1;
+		TCA0.SINGLE.INTCTRL = 0x10;
+		while(interr_timer == 0){
+			//timer energopoiisis
+		}
+	}		
+}
+
+
+
+
+
+ISR(PORTF_PORT_vect){
+
+	cli();	//APENERGOPOIOUME TA INTERRUPTS SE PERIPTWSI POU BRISKOMASTE SE KIKLO ROLOGIOU SIRINAS
+	interr_switch=1;
+	
+	if((interr_switch == 1)	&&	(phase == 0)){		//PRWTO PATIMA
+		if(PORTF.INTFLAGS==0x20){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			phase=1;
+			interr_switch=0;
+			Correct_code=0;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 1)){		//DEYTERO PATIMA
+		if(PORTF.INTFLAGS == 0x20){
+			phase=2;
+			interr_switch=0;
+			Correct_code=0;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 2)){		//TRITO PATIMA
+		if(PORTF.INTFLAGS == 0x20){
+			phase=3;
+			interr_switch=0;
+			Correct_code=0;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 3)){		//TETARTO PATIMA
+		if(PORTF.INTFLAGS == 0x20){
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+		if(PORTF.INTFLAGS == 0x40){
+			
+			phase=4;	//phase pou den isxuei giati exoume ton swsto kwdiko kai den dexomaste alli timi	
+			interr_switch=0;
+			Correct_code=1;
+			TCA0.SINGLE.CTRLA = 0; //MIDENIZOUME TIMER GIATI PIRAME TON SWSTO KWDIKO
+		}
+	}
+	//CLEAR FLAGS
+	int intflags = PORTF.INTFLAGS;
+	PORTF.INTFLAGS = intflags;
+
+	sei();	//ENERGOPOIOUME TA INTERRUPTS PALI AFOU TA APENERGOPOIISAME STIN ARXI
+
+}

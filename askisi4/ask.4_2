@@ -1,0 +1,237 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+//delay timer energopoiisis
+#define ped_activation 20;
+//delay timer apenergepopoiisis
+#define ped_deactivation 512;
+
+//metabliti mode gia activation-deactivation-Sirina_activation
+int mode;
+//psifeio eisagwgis kwdikou
+int phase;
+//metavliti an exoume ton swsto kwdiko apo eisagwgi
+int Correct_code;
+
+//metavliti pou mas epitrepei sto ISR tou PORTF
+int interr_switch;
+//metavliti pou mas leei an termatise o timer
+int interr_timer;
+//metavliti pou mas leei an kaname 3 diadoxika lathi stin eisagwgi kwdikou
+int Counter_SIR;
+
+int main(void){
+	
+	//to kathodigoume stin katastasi anamonis energopoiisis
+	mode=1;
+	
+	//orizoume to led mas kai to kleinoume
+	PORTD.DIR = PIN0_bm;
+	PORTD.OUTCLR = PIN0_bm;
+	
+	//ORIZOUME TON ADC
+	ADC0.CTRLA |= ADC_RESSEL_10BIT_gc;
+	ADC0.CTRLA |= ADC_FREERUN_bm;
+	ADC0.MUXPOS |= ADC_MUXPOS_AIN7_gc;
+	ADC0.DBGCTRL |= ADC_DBGRUN_bm;
+	ADC0.WINLT = 0x0F;
+	ADC0.INTCTRL |= ADC_WCMP_bm;
+	ADC0.CTRLE |= ADC_WINCM0_bm;
+
+	//orizoume ta switches SW5,SW6
+	PORTF.PIN6CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+	PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+	
+	//energopoioume interrupts
+	sei();
+
+	while (1){
+		if(mode == 1){
+			_delay_ms(1);
+			//mpainoume stin katastasi anamonis-energopoiisis
+			main_activation();
+		}
+		if(mode == 0){
+			_delay_ms(1);
+			//mpainoume stin katastasi apenergopoiisis-sirinas
+			main_deactivation();
+		}
+	}
+}
+
+
+int set_values(void){
+	//arxikoipoioume tis metavlites pou mas endiaferoun
+	phase=0;		//kante to 3 gia eukolo simulation
+	Correct_code=0;	//kante to 1 gia eukolo simulation
+	Counter_SIR=0;	//kante to 1 gia auekolo simulation
+	interr_timer=0;	//kante to 1 gia eukolo simulation
+}
+int main_activation(void){
+	//arxikopoiisi metavlitwn
+	set_values();
+	
+	while((Correct_code == 0) && (mode == 1)){
+		//katastasi anamonis
+	}
+	
+	//MPIKE O SWSTOS KWDIKOS ENERGOPOIEITAI O XRONISTIS
+	if(Correct_code == 1){
+		
+		TCA0.SINGLE.CNT = 0;
+		TCA0.SINGLE.CMP0 = ped_activation;
+		TCA0.SINGLE.CTRLB = 0;
+		TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc;
+		TCA0.SINGLE.CTRLA |= 1;
+		TCA0.SINGLE.INTCTRL = 0x10;
+		while(interr_timer == 0){
+			//timer energopoiisis
+		}
+	//xronistis teleiwse
+	}
+	/* ENERGOPOIEITAI O AISTHITIRAS ME TON 
+	ADC POU ORISAME STIN MAIN
+	ton exoume balei na exei apo default RES<WINLT */
+	ADC0.CTRLA = 0x03;
+	ADC0.COMMAND = 0x1;
+	_delay_ms(1);
+	
+	while(ADC0.RES >= ADC0.WINLT){
+		//adc aisthitira
+	}
+}
+int main_deactivation(void){
+	
+	PORTD.OUT = PIN0_bm;	//energopoioume to LED
+	
+	//arxikopoioume ta counters kai flags
+	set_values();
+		
+	//TIMER GIA TON XRONO EISAGWGIS KWDIKOU STIN APENERGOPOIISI
+	TCA0.SINGLE.CNT = 0;
+	TCA0.SINGLE.CMP0 = ped_deactivation;
+	TCA0.SINGLE.CTRLB = 0;
+	TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc;
+	TCA0.SINGLE.CTRLA |= 1;
+	TCA0.SINGLE.INTCTRL = 0x10;
+	sei();
+	while((Counter_SIR<3) && (interr_timer==0) && (Correct_code==0)){
+		//timer apenergopoiisis
+	}
+	if(Correct_code == 1){	/*eisagwgi swstou kwdikou eite mesa
+	 stis sinthikes eite enw xtipouse seirina */
+	
+		TCA0.SINGLE.CTRLA =0;	
+		//apenergopoiisi sirinas kai timer 
+				
+		PORTD.OUTCLR = PIN0_bm; //kleinoume to led
+				
+		//apenergopoiisi olwn twn energwn sistimatwn
+		mode = 1;	//epistrefoume stin anamoni tis energopoiisis
+	}
+}
+
+
+ISR(ADC0_WCOMP_vect){
+	cli();		/*apenergopoioume interrupts oso
+	eimaste sto ISR tou ADC */
+
+	//KLEINOUME TON ADC
+	ADC0.CTRLA = 0;		
+	
+	//pame se mode apenergopoiisis
+	mode = 0;	
+	
+	//CLEAR FLAGS
+	int intflags = ADC0.INTFLAGS;
+	ADC0.INTFLAGS = intflags;
+	sei();
+}
+ISR(TCA0_CMP0_vect){
+	
+	if((mode == 0) || (mode == 1)){	//mode energopoiisis-apenergopoiisis
+		
+		TCA0.SINGLE.CTRLA = 0; //DISABLE TIMER
+		
+		interr_timer=1;		//eisagwgi stin metavliti epeidi termatise timer
+	}
+	
+	//CLEAR FLAGS
+	int intflags = TCA0.SINGLE.INTFLAGS;
+	TCA0.SINGLE.INTFLAGS = intflags;
+}
+ISR(PORTF_PORT_vect){
+
+	cli();	/*APENERGOPOIOUME TA INTERRUPTS SE PERIPTWSI 
+	POU BRISKOMASTE SE KIKLO ROLOGIOU SIRINAS */
+	
+	interr_switch=1; /*epitrepoume tin monadiki eisodo sta if mas
+	gia na apofigoume pollaples eisagwges se if */
+	
+	if((interr_switch == 1)	&&	(phase == 0)){		//PRWTO PATIMA
+		if(PORTF.INTFLAGS==0x20){		//EISAGWGI SW5(LATHOS)
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(SWSTO)
+			phase=1;
+			interr_switch=0;
+			Correct_code=0;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 1)){		//DEYTERO PATIMA
+		if(PORTF.INTFLAGS == 0x20){		//EISAGWGI SW5(SWSTO)
+			phase=2;
+			interr_switch=0;
+			Correct_code=0;
+		}
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(LATHOS)
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 2)){		//TRITO PATIMA
+		if(PORTF.INTFLAGS == 0x20){		//EISAGWGI SW5(SWSTO)
+			phase=3;
+			interr_switch=0;
+			Correct_code=0;
+		}
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(LATHOS)
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+	}
+	
+	if((interr_switch == 1)	&&	(phase == 3)){		//TETARTO PATIMA
+		if(PORTF.INTFLAGS == 0x20){		//EISAGWGI SW5(LATHOS)
+			phase=0;
+			interr_switch=0;
+			Correct_code=0;
+			Counter_SIR = Counter_SIR + 1;
+		}
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(SWSTO)	
+			phase=4;	/*phase pou den isxuei giati exoume ton swsto
+			 kwdiko kai ara exoume Correct_code=1 */
+			interr_switch=0;
+			Correct_code=1;
+			TCA0.SINGLE.CTRLA = 0; /*MIDENIZOUME TIMER GIATI PIRAME 
+			ton swsto kwdiko gia to mode apenergopoiisis */
+		}
+	}
+	//CLEAR FLAGS
+	int intflags = PORTF.INTFLAGS;
+	PORTF.INTFLAGS = intflags;
+
+	sei();	/*ENERGOPOIOUME TA INTERRUPTS PALI 
+	AFOU TA APENERGOPOIISAME STIN ARXI */
+
+}
