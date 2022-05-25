@@ -1,0 +1,135 @@
+/*
+ * GccApplication2.c
+ *
+ * Created: 29/3/2022 6:36:38 μμ
+ * Author : Dell E6440
+ */ 
+#include <stdio.h>
+#include <stdlib.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+#define del 2
+#define ped 20
+
+int interrKOUMPIOU=0; //arxiko set interrKOUMPIOU
+int interrAISTHITIRA;
+
+int main(void)
+{
+	PORTD.DIR |= PIN0_bm;	//PIN IS OUTPUT
+	PORTD.OUT |= PIN0_bm;	//LED IS OFF (KOKKINO FANARI MEGALOU DROMOU AUTOKINITWN=PIN0)
+	
+	PORTD.DIR |= PIN2_bm;	//PIN IS OUTPUT
+	PORTD.OUT |= PIN2_bm;	//LED IS OFF (KOKKINO FANARI MEGALOU DROMOU PEZWN=PIN2)
+	
+	PORTD.DIR |= PIN1_bm;	//PIN IS OUTPUT
+	PORTD.OUT |= PIN1_bm;	//LED IS OFF (KOKKINO FANARI MIKROU DROMOU AUTOKINITWN=PIN1)
+	
+	PORTF.DIR |= PIN5_bm;	//PIN IS OUTPUT
+	PORTF.OUT |= PIN5_bm;	//LED IS OFF(KOUMPI PEZWN IS OFF)
+
+while (1)
+{
+	int n = rand()%9;
+	if (n%10 == 0 || n%10 == 5 || n%10 == 8)
+	{
+		interrAISTHITIRA=1;
+	}
+	else{
+		interrAISTHITIRA=0;
+	}
+		
+	if ( interrAISTHITIRA==1 )  //IF interrAISTHITIRA==1 TOTE UPARXOUN AUTOKINITA STON MIKRO DROMO!
+	{
+			PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+			sei();
+			
+			if (interrKOUMPIOU==1) //IF interrKOUMPIOU=1 TOTE TO KOUMPI PEZWN PATITHIKE
+			{
+				
+				PORTD.OUT |= PIN0_bm;	//KOKKINO FANARI MEGALOU DROMOU AUTOKINITWN
+				_delay_ms(del);
+				PORTD.OUTCLR = PIN1_bm;	//PRASINO FANARI MIKROU DROMOU AUTOKINITWN								//katastasi s3.1
+				_delay_ms(del);
+				PORTD.OUTCLR = PIN2_bm; //PRASINO FANARI MEGALOU DROMOU PEZWN
+				
+				//timer gia FANARI MEGALOU DROMOU PEZWN
+				TCA0.SINGLE.CNT = 0; //clear counter
+				TCA0.SINGLE.CTRLB =0; //Normal Mode(TCA_SINGLE_WGMODE_NORMAL_gc σελ 207)
+				TCA0.SINGLE.CMP0 = ped; //When reaches this value ->interrupt CLOCK FREQUENCY/1024
+				TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc; //(0x7<<1 σελ 224)σ
+				TCA0.SINGLE.CTRLA |= 1; //ENABLE
+				TCA0.SINGLE.INTCTRL = TCA_SINGLE_CMP0_bm; //Interrupt Enable (=0x10)
+				sei();	//BEGIN ACCEPTING interrupt signals
+				while (interrKOUMPIOU==1) {
+				}
+				PORTD.OUT |=PIN2_bm;	//KSANAKANOUME KOKKINO TO FANARI TWN PEZWN META TO DELAY TOU TIMER
+				
+				cli();
+			}
+			{
+				PORTD.OUTCLR = PIN1_bm;	//PRASINO FANARI MIKROU DROMOU AUTOKINITWN								//katastasi s1
+				_delay_ms(del);
+				PORTD.OUT |= PIN0_bm;	//KOKKINO FANARI MEGALOU DROMOU AUTOKINITWN
+				_delay_ms(del);
+			}
+	}
+	else  //IF interrAISTHITIRA==0 TOTE DEN UPARXOUN AUTOKINITA STON MIKRO DROMO!
+	{
+			PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+			sei();
+			
+			if (interrKOUMPIOU==1) //IF interrKOUMPIOU=1 TOTE TO KOUMPI PEZWN PATITHIKE
+			{
+				
+				PORTD.OUT |= PIN0_bm;	//KOKKINO FANARI MEGALOU DROMOU AUTOKINITWN
+				_delay_ms(del);
+				PORTD.OUTCLR = PIN1_bm;	//PRASINO FANARI MIKROU DROMOU AUTOKINITWN								//katastasi s3.2
+				_delay_ms(del);
+				PORTD.OUTCLR = PIN2_bm; //PRASINO FANARI MEGALOU DROMOU PEZWN
+				
+				//timer gia FANARI MEGALOU DROMOU PEZWN
+				TCA0.SINGLE.CNT = 0; //clear counter
+				TCA0.SINGLE.CTRLB =0; //Normal Mode(TCA_SINGLE_WGMODE_NORMAL_gc σελ 207)
+				TCA0.SINGLE.CMP0 = ped; //When reaches this value ->interrupt CLOCK FREQUENCY/1024
+				TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV1024_gc; //(0x7<<1 σελ 224)σ
+				TCA0.SINGLE.CTRLA |= 1; //ENABLE
+				TCA0.SINGLE.INTCTRL = TCA_SINGLE_CMP0_bm; //Interrupt Enable (=0x10)
+				sei();	//BEGIN ACCEPTING interrupt signals
+				while (interrKOUMPIOU==1) {
+				}
+				PORTD.OUT |=PIN2_bm;	//KSANAKANOUME KOKKINO TO FANARI TWN PEZWN META TO DELAY TOU TIMER
+				
+				cli();
+			}
+			else
+			{
+				PORTD.OUTCLR = PIN0_bm;	//PRASINO FANARI MEGALOU DROMOU AUTOKINITWN								//katastasi s2
+				_delay_ms(del);
+				PORTD.OUT |= PIN1_bm;	//KOKKINO FANARI MIKROU DROMOU AUTOKINITWN
+				_delay_ms(del);
+			}		
+	}	
+}
+}
+
+ISR(PORTF_PORT_vect)	//INTERRUPT
+{	
+	//clear the interrupt flag
+	int flagKOUMPIOU2 = PORTF.INTFLAGS;
+	PORTF.INTFLAGS = flagKOUMPIOU2;
+	
+	interrKOUMPIOU=1;  //set interKOUMPIOU=1 efoson patithike to koumpi pezwn
+}
+
+ISR(TCA0_CMP0_vect)		//TIMER
+{	
+	TCA0.SINGLE.CTRLA = 0; //DISABLE
+	//clear flag
+	int flagKOUMPIOU = TCA0.SINGLE.INTFLAGS;
+	TCA0.SINGLE.INTFLAGS= flagKOUMPIOU;
+	
+	interrKOUMPIOU=0; //reset interrKOUMPIOU epeidi theloume na sbisei to fanari gia tous pezous efoson patithike molis wste na perimenoume to epomeno patima
+}
