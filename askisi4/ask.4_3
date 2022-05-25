@@ -5,7 +5,7 @@
 //delay timer energopoiisis
 #define ped_activation 20;
 //delay timer apenergepopoiisis
-#define ped_deactivation 512;
+#define ped_deactivation 256;
 
 //metabliti mode gia activation-deactivation-Sirina_activation
 int mode;
@@ -64,10 +64,10 @@ int main(void){
 
 int set_values(void){
 	//arxikoipoioume tis metavlites pou mas endiaferoun
-	phase=0;		//kante to 3 gia eukolo simulation
-	Correct_code=0;	//kante to 1 gia eukolo simulation
-	Counter_SIR=0;	//kante to 1 gia auekolo simulation
-	interr_timer=0;	//kante to 1 gia eukolo simulation
+	phase=0;		//kante to 3 gia eukolo simulation flag psifiou eisagwgis kwdikou
+	Correct_code=0;	//kante to 1 gia eukolo simulation flag swstis eisagwgis kwdikou
+	Counter_SIR=0;	//kante to 1 gia auekolo simulation flag 3 diadoxikwn lathwn se kwdiko
+	interr_timer=0;	//kante to 1 gia eukolo simulation flag timer teleiwse se kwdiko
 }
 int main_activation(void){
 	//arxikopoiisi metavlitwn
@@ -133,7 +133,7 @@ int main_deactivation(void){
 	 stis sinthikes eite enw xtipouse seirina */
 	
 		TCA0.SINGLE.CTRLA =0;	
-		//apenergopoiisi sirinas kai timer 
+		//apenergopoiisi sirinas PWM kai twn timers
 				
 		PORTD.OUTCLR = PIN0_bm; //kleinoume to led
 				
@@ -179,7 +179,8 @@ ISR(ADC0_WCOMP_vect){
 	//CLEAR FLAGS
 	int intflags = ADC0.INTFLAGS;
 	ADC0.INTFLAGS = intflags;
-	sei();
+	sei();	/* energopoioume ta interrupts afou 
+	proigoumenws ta apenergopoiisame */
 }
 ISR(TCA0_OVF_vect){
 	

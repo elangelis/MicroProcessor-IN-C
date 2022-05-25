@@ -2,57 +2,72 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
-
+//delay timer energopoiisis
 #define ped_activation 20;
+//delay timer apenergepopoiisis
 #define ped_deactivation 512;
 
+//metabliti mode gia activation-deactivation-Sirina_activation
 int mode;
+//psifeio eisagwgis kwdikou
 int phase;
+//metavliti an exoume ton swsto kwdiko apo eisagwgi
 int Correct_code;
 
+//metavliti pou mas epitrepei sto ISR tou PORTF
 int interr_switch;
+//metavliti pou mas leei an termatise o timer
 int interr_timer;
+//metavliti pou mas leei an kaname 3 diadoxika lathi stin eisagwgi kwdikou
 int Counter_SIR;
 
 int main(void){
-
+	
+	//to kathodigoume stin katastasi anamonis energopoiisis
 	mode=1;
+	
+	//arxikopoioume tis metablites mas
 	set_values();
 	
+	//orizoume to led mas kai to kleinoume
 	PORTD.DIR = PIN0_bm;
 	PORTD.OUTCLR = PIN0_bm;
-		
 	
+	//orizoume ta switches SW5,SW6
 	PORTF.PIN6CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
 	PORTF.PIN5CTRL |= PORT_PULLUPEN_bm | PORT_ISC_BOTHEDGES_gc;
+	
+	//energopoioume interrupts
 	sei();
 
-    while (1){
+	while (1){
 		if(mode == 1){
 			_delay_ms(1);
-			main_activation();		
+			//mpainoume stin katastasi anamonis-energopoiisis
+			main_activation();
 		}
-    }
+	}
 }
 
 
 int set_values(void){
-	phase=0;
-	Correct_code=0;
-	Counter_SIR=0;
-	interr_timer=0;
+	//arxikoipoioume tis metavlites pou mas endiaferoun
+	phase=0;		//kante to 3 gia eukolo simulation flag psifiou eisagwgis kwdikou
+	Correct_code=0;	//kante to 1 gia eukolo simulation flag swstis eisagwgis kwdikou
+	Counter_SIR=0;	//kante to 1 gia auekolo simulation flag 3 diadoxikwn lathwn se kwdiko
+	interr_timer=0;	//kante to 1 gia eukolo simulation flag timer teleiwse se kwdiko
 }
 int main_activation(void){
+	//arxikopoiisi metavlitwn
+	set_values();
 	
-	set_values();	
-	
-	while((Correct_code == 0) && (mode == 1)){	
-		//katastasi anamonis	
+	while((Correct_code == 0) && (mode == 1)){
+		//katastasi anamonis
 	}
 	
 	//MPIKE O SWSTOS KWDIKOS ENERGOPOIEITAI O XRONISTIS
 	if(Correct_code == 1){
-			
+		
 		TCA0.SINGLE.CNT = 0;
 		TCA0.SINGLE.CMP0 = ped_activation;
 		TCA0.SINGLE.CTRLB = 0;
@@ -62,26 +77,42 @@ int main_activation(void){
 		while(interr_timer == 0){
 			//timer energopoiisis
 		}
-	}		
+	//xronistis teleiwse
+	}
 }
 
 
 
 
-
+ISR(TCA0_CMP0_vect){
+	
+	if((mode == 0) || (mode == 1)){	//mode energopoiisis-apenergopoiisis
+		
+		TCA0.SINGLE.CTRLA = 0; //DISABLE TIMER
+		
+		interr_timer=1;		//eisagwgi stin metavliti epeidi termatise timer
+	}
+	
+	//CLEAR FLAGS
+	int intflags = TCA0.SINGLE.INTFLAGS;
+	TCA0.SINGLE.INTFLAGS = intflags;
+}
 ISR(PORTF_PORT_vect){
 
-	cli();	//APENERGOPOIOUME TA INTERRUPTS SE PERIPTWSI POU BRISKOMASTE SE KIKLO ROLOGIOU SIRINAS
-	interr_switch=1;
+	cli();	/*APENERGOPOIOUME TA INTERRUPTS SE PERIPTWSI 
+	POU BRISKOMASTE SE KIKLO ROLOGIOU SIRINAS */
+	
+	interr_switch=1; /*epitrepoume tin monadiki eisodo sta if mas
+	gia na apofigoume pollaples eisagwges se if */
 	
 	if((interr_switch == 1)	&&	(phase == 0)){		//PRWTO PATIMA
-		if(PORTF.INTFLAGS==0x20){
+		if(PORTF.INTFLAGS==0x20){		//EISAGWGI SW5(LATHOS)
 			phase=0;
 			interr_switch=0;
 			Correct_code=0;
 			Counter_SIR = Counter_SIR + 1;
 		}
-		if(PORTF.INTFLAGS == 0x40){
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(SWSTO)
 			phase=1;
 			interr_switch=0;
 			Correct_code=0;
@@ -89,12 +120,12 @@ ISR(PORTF_PORT_vect){
 	}
 	
 	if((interr_switch == 1)	&&	(phase == 1)){		//DEYTERO PATIMA
-		if(PORTF.INTFLAGS == 0x20){
+		if(PORTF.INTFLAGS == 0x20){		//EISAGWGI SW5(SWSTO)
 			phase=2;
 			interr_switch=0;
 			Correct_code=0;
 		}
-		if(PORTF.INTFLAGS == 0x40){
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(LATHOS)
 			phase=0;
 			interr_switch=0;
 			Correct_code=0;
@@ -103,12 +134,12 @@ ISR(PORTF_PORT_vect){
 	}
 	
 	if((interr_switch == 1)	&&	(phase == 2)){		//TRITO PATIMA
-		if(PORTF.INTFLAGS == 0x20){
+		if(PORTF.INTFLAGS == 0x20){		//EISAGWGI SW5(SWSTO)
 			phase=3;
 			interr_switch=0;
 			Correct_code=0;
 		}
-		if(PORTF.INTFLAGS == 0x40){
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(LATHOS)
 			phase=0;
 			interr_switch=0;
 			Correct_code=0;
@@ -117,24 +148,26 @@ ISR(PORTF_PORT_vect){
 	}
 	
 	if((interr_switch == 1)	&&	(phase == 3)){		//TETARTO PATIMA
-		if(PORTF.INTFLAGS == 0x20){
+		if(PORTF.INTFLAGS == 0x20){		//EISAGWGI SW5(LATHOS)
 			phase=0;
 			interr_switch=0;
 			Correct_code=0;
 			Counter_SIR = Counter_SIR + 1;
 		}
-		if(PORTF.INTFLAGS == 0x40){
-			
-			phase=4;	//phase pou den isxuei giati exoume ton swsto kwdiko kai den dexomaste alli timi	
+		if(PORTF.INTFLAGS == 0x40){		//EISAGWGI SW6(SWSTO)	
+			phase=4;	/*phase pou den isxuei giati exoume ton swsto
+			 kwdiko kai ara exoume Correct_code=1 */
 			interr_switch=0;
 			Correct_code=1;
-			TCA0.SINGLE.CTRLA = 0; //MIDENIZOUME TIMER GIATI PIRAME TON SWSTO KWDIKO
+			TCA0.SINGLE.CTRLA = 0; /*MIDENIZOUME TIMER GIATI PIRAME 
+			ton swsto kwdiko gia to mode apenergopoiisis */
 		}
 	}
 	//CLEAR FLAGS
 	int intflags = PORTF.INTFLAGS;
 	PORTF.INTFLAGS = intflags;
 
-	sei();	//ENERGOPOIOUME TA INTERRUPTS PALI AFOU TA APENERGOPOIISAME STIN ARXI
+	sei();	/*ENERGOPOIOUME TA INTERRUPTS PALI 
+	AFOU TA APENERGOPOIISAME STIN ARXI */
 
 }
